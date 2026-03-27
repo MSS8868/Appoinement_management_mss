@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { format, addDays } from 'date-fns';
-import { patientAPI, deptAPI, doctorAPI, appointmentAPI } from '../../services/api';
+import { patientAPI, deptAPI, doctorAPI, appointmentAPI, authAPI } from '../../services/api';
 import { FiSearch } from 'react-icons/fi';
 import { MdCheckCircle, MdArrowBack, MdArrowForward } from 'react-icons/md';
 import { v4 as uuidv4 } from 'uuid';
@@ -69,28 +69,15 @@ export default function WalkInBooking() {
     setLoading(true);
     try {
       // Send OTP then auto-verify in demo mode to create user
-      const otpRes = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/send-otp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: newPatient.mobile }),
-      });
-      const otpData = await otpRes.json();
-      const demoOtp = otpData.demoOtp || '123456';
+      const otpRes = await authAPI.sendOTP(newPatient.mobile);
+      const demoOtp = otpRes.data?.demoOtp || '123456';
 
-      const verRes = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/verify-otp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: newPatient.mobile, otp: demoOtp }),
-      });
-      const verData = await verRes.json();
+      const verRes = await authAPI.verifyOTP(newPatient.mobile, demoOtp);
 
-      if (!verData.success) throw new Error('OTP verification failed');
+      if (!verRes.data?.success) throw new Error('OTP verification failed');
 
       // Complete profile using patient token
-      const profRes = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/auth/complete-profile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${verData.token}` },
-        body: JSON.stringify(newPatient),
-      });
-      const profData = await profRes.json();
+      await authAPI.completeProfile(newPatient);
 
       // Now search for created patient
       const searchRes = await patientAPI.search({ mobile: newPatient.mobile });
